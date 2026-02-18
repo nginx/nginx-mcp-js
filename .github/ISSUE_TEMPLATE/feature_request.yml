@@ -12,8 +12,8 @@ body:
 
         **Note:** If you are seeking community support, please start a new topic in the [NGINX Community forum][forum]. If you wish to discuss the codebase, please start a new thread via [GitHub discussions][discussions].
 
-        [issue search]: https://github.com/{{REPOSITORY_OWNER}}/{{REPOSITORY_URL}}/search?q=is%3Aissue&type=issues
-        [discussions]: https://github.com/{{REPOSITORY_OWNER}}/{{REPOSITORY_URL}}/discussions
+        [issue search]: https://github.com/xeioex/nginx-mcp-demo/search?q=is%3Aissue&type=issues
+        [discussions]: https://github.com/xeioex/nginx-mcp-demo/discussions
         [forum]: https://community.nginx.org
 
   - type: textarea
