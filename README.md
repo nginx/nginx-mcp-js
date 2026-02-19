@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/license/apache-2-0)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](/CODE_OF_CONDUCT.md)
 
-# MCP Observability with NGINX
+# Agentic Observability with NGINX: Real-time MCP Traffic Monitoring
 
 An [njs](https://nginx.org/en/docs/njs/) module for monitoring
 [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) traffic
@@ -51,6 +51,13 @@ SSE response, parses the first JSON-RPC 2.0 message, and extracts:
 
 These values are exposed as NGINX variables that the nginx-otel module can
 attach to each trace span as custom attributes.
+
+## Quick Start Demo
+
+A complete end-to-end demo is available in the [`demo/`](demo/) directory.
+It packages NGINX, njs, nginx-otel, an OTel Collector, Prometheus, Grafana,
+and a mock MCP client/server into a single Docker image with a pre-provisioned
+dashboard.  See [demo/README.md](demo/README.md) for instructions.
 
 ## Setup
 
@@ -139,13 +146,6 @@ extracts `serverInfo.name` from the response.  Both are keyed by
 | `mcp_server_name` | `js_set` | Looks up server name by `Mcp-Session-Id` from shared dict |
 | `mcp_response_filter` | `js_body_filter` | Buffers SSE response, extracts first JSON-RPC message and server identity |
 | `mcp_header_filter` | `js_header_filter` | Removes `Content-Length` header and captures client identity from `initialize` |
-
-## Demo
-
-A complete end-to-end demo is available in the [`demo/`](demo/) directory.
-It packages NGINX, njs, nginx-otel, an OTel Collector, Prometheus, Grafana,
-and a mock MCP client/server into a single Docker image with a pre-provisioned
-dashboard.  See [demo/README.md](demo/README.md) for instructions.
 
 ## Contributing
 

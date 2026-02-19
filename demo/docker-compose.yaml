@@ -1,0 +1,142 @@
+# Copyright (C) Dmitry Volyntsev
+# Copyright (C) F5, Inc.
+
+services:
+  # NGINX reverse proxy with njs and OpenTelemetry
+  nginx:
+    image: nginx:alpine-otel
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./nginx/mcp.conf:/etc/nginx/nginx.conf:ro
+      - ../mcp.js:/etc/nginx/mcp.js:ro
+    depends_on:
+      - mcp-stable
+      - mcp-flaky
+      - mcp-sluggish
+      - otel-collector
+    networks:
+      - mcp-network
+
+  # OpenTelemetry Collector with spanmetrics connector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.146.1
+    volumes:
+      - ./otel/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    networks:
+      - mcp-network
+
+  # Prometheus for metrics storage
+  prometheus:
+    image: prom/prometheus:v3.9.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    depends_on:
+      - otel-collector
+    networks:
+      - mcp-network
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana-oss:12.3.3
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+      - GF_LOG_LEVEL=warn
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - mcp-network
+
+  # MCP Server: stable (no errors, base latency)
+  mcp-stable:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile
+    command:
+      - "/mcp_server"
+      - "--name"
+      - "mcp-stable"
+      - "--port"
+      - "9001"
+      - "--error-rate"
+      - "0"
+      - "--tool-error-rate"
+      - "0"
+      - "--long-rate"
+      - "0"
+    networks:
+      - mcp-network
+
+  # MCP Server: flaky (~2% protocol errors, ~10% tool errors)
+  mcp-flaky:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile
+    command:
+      - "/mcp_server"
+      - "--name"
+      - "mcp-flaky"
+      - "--port"
+      - "9002"
+      - "--error-rate"
+      - "0.02"
+      - "--tool-error-rate"
+      - "0.10"
+      - "--long-rate"
+      - "0"
+    networks:
+      - mcp-network
+
+  # MCP Server: sluggish (no errors, elevated latency)
+  mcp-sluggish:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile
+    command:
+      - "/mcp_server"
+      - "--name"
+      - "mcp-sluggish"
+      - "--port"
+      - "9003"
+      - "--error-rate"
+      - "0"
+      - "--tool-error-rate"
+      - "0"
+      - "--max-latency"
+      - "100ms"
+    networks:
+      - mcp-network
+
+  # MCP Client: traffic generator
+  mcp-client:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile
+    command:
+      - "/mcp_client"
+      - "-url"
+      - "http://nginx:9000"
+      - "-duration"
+      - "2h"
+      - "-workers"
+      - "6"
+    depends_on:
+      - nginx
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge

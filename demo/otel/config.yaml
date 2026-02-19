@@ -1,0 +1,45 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+connectors:
+  spanmetrics:
+    metrics_flush_interval: 15s
+    dimensions:
+      - name: mcp.tool.name
+      - name: mcp.tool.status
+      - name: mcp.client.name
+      - name: mcp.server.name
+    histogram:
+      unit: ms
+      explicit:
+        buckets:
+          - "5ms"
+          - "10ms"
+          - "25ms"
+          - "50ms"
+          - "100ms"
+          - "250ms"
+          - "500ms"
+          - "1s"
+          - "5s"
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:9464
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [spanmetrics]
+
+    metrics:
+      receivers: [spanmetrics]
+      exporters: [prometheus]
