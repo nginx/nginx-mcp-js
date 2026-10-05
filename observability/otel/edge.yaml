@@ -1,0 +1,29 @@
+connectors:
+  spanmetrics/edge:
+    namespace: edge
+    metrics_flush_interval: 5s
+    dimensions:
+      - name: gen_ai.tool.name
+      - name: mcp.backend.name
+      - name: http.status_code
+    histogram:
+      unit: ms
+      explicit:
+        buckets: [5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s]
+
+processors:
+  filter/edge:
+    error_mode: propagate
+    traces:
+      span:
+        - 'resource.attributes["service.name"] != "nginx-mcp-edge"'
+
+service:
+  pipelines:
+    traces/edge:
+      receivers: [otlp]
+      processors: [filter/edge]
+      exporters: [spanmetrics/edge]
+    metrics:
+      receivers: [spanmetrics/edge]
+      exporters: [prometheus]
