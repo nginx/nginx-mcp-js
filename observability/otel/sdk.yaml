@@ -1,0 +1,28 @@
+connectors:
+  spanmetrics/mcp:
+    namespace: mcp_exec
+    metrics_flush_interval: 5s
+    dimensions:
+      - name: gen_ai.tool.name
+      - name: error.type
+      - name: rpc.response.status_code
+    histogram:
+      unit: ms
+
+processors:
+  filter/mcp:
+    error_mode: propagate
+    traces:
+      span:
+        - 'attributes["mcp.method.name"] != "tools/call"'
+        - 'resource.attributes["service.name"] != "mcp-information-python"'
+
+service:
+  pipelines:
+    traces/mcp:
+      receivers: [otlp]
+      processors: [filter/mcp]
+      exporters: [spanmetrics/mcp]
+    metrics/mcp:
+      receivers: [spanmetrics/mcp]
+      exporters: [prometheus]

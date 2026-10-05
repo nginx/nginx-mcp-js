@@ -1,0 +1,4 @@
+services:
+  nginx:
+    volumes:
+      - ./native-routing/nginx.conf:/etc/nginx/nginx.conf:ro

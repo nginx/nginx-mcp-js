@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: http
+    type: file
+    options:
+      path: /var/lib/grafana/http
+  - name: sdk
+    type: file
+    options:
+      path: /var/lib/grafana/sdk

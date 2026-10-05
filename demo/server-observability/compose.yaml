@@ -1,0 +1,13 @@
+services:
+  mcp-information:
+    environment:
+      MCP_TELEMETRY: "on"
+  otel-collector:
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+      - --config=/etc/otelcol-contrib/pipelines/edge.yaml
+      - --config=/etc/otelcol-contrib/pipelines/sdk.yaml
+  grafana:
+    volumes:
+      - ./server-observability/providers.yaml:/etc/grafana/provisioning/dashboards/providers.yaml:ro
+      - ../observability/grafana/sdk:/var/lib/grafana/sdk:ro

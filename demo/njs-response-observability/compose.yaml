@@ -1,0 +1,14 @@
+services:
+  nginx:
+    volumes:
+      - ./njs-response-observability/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../njs:/etc/nginx/njs:ro
+  otel-collector:
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+      - --config=/etc/otelcol-contrib/pipelines/edge.yaml
+      - --config=/etc/otelcol-contrib/pipelines/njs.yaml
+  grafana:
+    volumes:
+      - ./njs-response-observability/providers.yaml:/etc/grafana/provisioning/dashboards/providers.yaml:ro
+      - ../observability/grafana/njs:/var/lib/grafana/njs:ro

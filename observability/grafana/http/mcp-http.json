@@ -1,0 +1,55 @@
+{
+  "uid": "mcp-http",
+  "title": "MCP native HTTP edge",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP requests/s per tool",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [{
+        "expr": "sum by (gen_ai_tool_name) (rate(edge_calls_total[1m]))",
+        "legendFormat": "{{gen_ai_tool_name}}", "refId": "A"
+      }]
+    },
+    {
+      "id": 2,
+      "title": "HTTP response status (including edge rejections)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [{
+        "expr": "sum by (http_status_code) (rate(edge_calls_total[1m]))",
+        "legendFormat": "HTTP {{http_status_code}}", "refId": "A"
+      }]
+    },
+    {
+      "id": 3,
+      "title": "HTTP P99 latency per backend (ms)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "targets": [{
+        "expr": "histogram_quantile(0.99, sum by (le, mcp_backend_name) (rate(edge_duration_milliseconds_bucket[1m])))",
+        "legendFormat": "{{mcp_backend_name}}", "refId": "A"
+      }]
+    },
+    {
+      "id": 4,
+      "title": "HTTP 4xx / 5xx requests/s",
+      "description": "HTTP errors only. Tool/RPC errors under HTTP 200 are not observed here.",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [{
+        "expr": "sum by (http_status_code) (rate(edge_calls_total{http_status_code=~\"[45]..\"}[1m]))",
+        "legendFormat": "HTTP {{http_status_code}}", "refId": "A"
+      }]
+    }
+  ]
+}
