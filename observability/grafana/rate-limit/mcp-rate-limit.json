@@ -1,0 +1,38 @@
+{
+  "uid": "mcp-rate-limit",
+  "title": "MCP tool rate limits",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "5s",
+  "time": {"from": "now-5m", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Requests forwarded to MCP server",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "fieldConfig": {
+        "defaults": {"unit": "reqps", "min": 0}, "overrides": []
+      },
+      "targets": [{
+        "expr": "sum by (gen_ai_tool_name) (rate(edge_calls_total{mcp_rate_limit_status=\"PASSED\",gen_ai_tool_name=~\"get_forecast|search_web\"}[1m]))",
+        "legendFormat": "{{gen_ai_tool_name}}", "refId": "A"
+      }]
+    },
+    {
+      "id": 2,
+      "title": "Requests rejected by NGINX",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "fieldConfig": {
+        "defaults": {"unit": "reqps", "min": 0}, "overrides": []
+      },
+      "targets": [{
+        "expr": "sum by (gen_ai_tool_name) (rate(edge_calls_total{http_status_code=\"429\",gen_ai_tool_name=~\"get_forecast|search_web\"}[1m]))",
+        "legendFormat": "{{gen_ai_tool_name}}", "refId": "A"
+      }]
+    }
+  ]
+}

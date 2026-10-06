@@ -95,5 +95,5 @@ timeout 60s docker run --rm --memory=768m --memory-swap=768m \
     -v "/path/to/nginx-tests:/nginx-tests:ro" mcp-routing-test
 ```
 
-CI runs the three main demos and checks routing, metrics and Grafana
+CI runs the main demos and checks routing, metrics and Grafana
 provisioning. The Perl regression tests are available for local checks.
