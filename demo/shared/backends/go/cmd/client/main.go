@@ -52,6 +52,7 @@ type config struct {
 	maxRequests int
 	rps         int
 	mix         scenarioMix
+	tool        string
 }
 
 type scenarioMix struct {
@@ -125,6 +126,7 @@ func main() {
 	headerErrors := flag.Int("header-error-percent", 5, "Header mismatch share")
 	policyDenials := flag.Int("policy-denial-percent", 5, "Edge denial share")
 	interim := flag.Int("input-required-percent", 5, "Interim result share")
+	targetTool := flag.String("tool", "", "Send calls to this tool")
 	flag.Parse()
 
 	duration, err := time.ParseDuration(*durationValue)
@@ -151,6 +153,7 @@ func main() {
 		rps:         *rps,
 		mix: scenarioMix{*toolErrors, *rpcErrors, *headerErrors,
 			*policyDenials, *interim},
+		tool: *targetTool,
 	}
 
 	log.Printf("starting MCP %s load generator", protocolVersion)
@@ -162,6 +165,16 @@ func main() {
 		100-total, *rps)
 
 	toolNames := tools.Names()
+	if cfg.tool != "" {
+		known := false
+		for _, name := range toolNames {
+			known = known || name == cfg.tool
+		}
+		if !known {
+			log.Fatalf("unknown tool %q", cfg.tool)
+		}
+		toolNames = []string{cfg.tool}
+	}
 	distributions := make(map[string]*toolDistribution)
 	clientStats := make(map[string]*stats)
 	for _, profile := range clientProfiles {
