@@ -1,0 +1,9 @@
+connectors:
+  spanmetrics/edge:
+    dimensions:
+      - name: gen_ai.tool.name
+      - name: mcp.backend.name
+      - name: http.status_code
+      - name: mcp.breaker.admission
+      - name: mcp.outcome
+      - name: mcp.rpc.code
