@@ -13,6 +13,7 @@ The examples use 1.31.6 and load `ngx_otel_module.so` for tracing.
 | mcp-njs.conf | http | Declares observer import and request state; requires njs/mcp-observer.mjs and JS module |
 | mcp-rate-limit.conf | location | Applies the mcp_tools limit zone; requires @mcp_rate_limited for JSON HTTP 429 |
 | mcp-breaker.conf | http | Shared failure state and admission/record variables; requires njs/mcp-breaker.mjs |
+| mcp-audit.conf | http | JSON log format and gateway decision maps; requires validation, OTel and outcome variables |
 
 Load metadata at http scope and supply an allowlist map from
 `$mcp_body_tool` to `$mcp_upstream` (empty means denied). Metadata maps
@@ -27,6 +28,14 @@ on the validated tool name. Include mcp-rate-limit.conf in the proxy
 location. The zone rate is deployment policy; each tool has an independent
 bucket shared between workers. See the
 [rate-limiting example](../demo/tool-rate-limiting/README.md).
+
+For structured audit, include mcp-audit.conf at http scope and select
+`access_log <path> mcp_audit` at server scope to cover early rejections.
+Validation sets `$mcp_rejection_reason` in the rejecting branch. The audit
+format uses `$mcp_outcome` and `$mcp_rpc_code` from mcp-njs.conf; without an
+observer, define them as `unobserved` and an empty string. Request bodies
+and credentials are excluded. See the
+[terminal audit example](../demo/structured-audit/README.md).
 
 The snippets target direct MCP 2026-07-28 tools/call. Adapt supported
 versions, body limits and policy to your deployment. If you raise the body

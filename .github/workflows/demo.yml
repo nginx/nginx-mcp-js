@@ -81,6 +81,20 @@ jobs:
               python3 -c 'import json, sys; titles = {
                   d["title"] for d in json.load(sys.stdin)}; assert {
                   "MCP tool circuit breaker"} <= titles, titles'
+      - name: Test structured audit demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh structured-audit logs --tail=100 || true
+              fi
+              ./run.sh structured-audit down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh structured-audit
+          ./run.sh structured-audit stop mcp-client
+          python3 structured-audit/check.py
       - name: Test server-side observability demo
         run: |
           cleanup() {
