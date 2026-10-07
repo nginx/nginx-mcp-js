@@ -12,7 +12,7 @@ fi
 
 case "$mode" in
     native-routing|tool-rate-limiting|tool-circuit-breaking|\
-    server-observability|\
+    server-observability|structured-audit|\
     njs-response-observability|\
     njs-response-observability-python) ;;
     *)
@@ -21,6 +21,7 @@ case "$mode" in
             "Examples: native-routing, server-observability," \
             "          tool-rate-limiting," \
             "          tool-circuit-breaking," \
+            "          structured-audit," \
             "          njs-response-observability," \
             "          njs-response-observability-python" >&2
         exit 1

@@ -1,0 +1,10 @@
+services:
+  nginx:
+    volumes:
+      - ./structured-audit/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../njs:/etc/nginx/njs:ro
+  otel-collector:
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+      - --config=/etc/otelcol-contrib/pipelines/edge.yaml
+      - --config=/etc/otelcol-contrib/pipelines/njs.yaml
