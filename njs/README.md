@@ -30,3 +30,21 @@ Known RPC codes remain numeric; other codes become `other` for bounded
 metric dimensions. Tool errors do not imply unhealthy infrastructure.
 Run `node t/mcp_observer.mjs` from the root for classifier/filter tests.
 See [the complete example](../demo/njs-response-observability/README.md).
+
+## Tool circuit breaker
+
+[mcp-breaker.mjs](mcp-breaker.mjs) exposes admission and result recording
+as NGINX variables. The deployment supplies `$mcp_breaker_key`, evaluates
+`$mcp_breaker_admission` before proxying and references `$mcp_breaker_record`
+only in its access log, after upstream status and response observation.
+The admission value is cached for the request; outcome recording happens
+once in the log phase. Shared counters and expiring open flags coordinate
+workers without storing mutable state in the JavaScript global context.
+
+The demo policy opens after three failures in a fixed five-second window,
+then blocks for ten seconds. It counts internal RPC errors and upstream
+HTTP 500/502/503/504. Business tool errors, invalid or unobserved JSON and
+interim results do not count as success or reset failures. Existing
+in-flight calls may complete after opening. This is a threshold/cooldown
+example, not a half-open probe scheduler.
+See [the circuit breaker demo](../demo/tool-circuit-breaking/README.md).

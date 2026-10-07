@@ -17,7 +17,9 @@ jobs:
         with:
           node-version: '25'
       - name: Test response observer
-        run: node ../t/mcp_observer.mjs
+        run: |
+          node ../t/mcp_observer.mjs
+          node ../t/mcp_breaker.mjs
       - name: Test native routing demo
         run: |
           cleanup() {
@@ -59,6 +61,26 @@ jobs:
               python3 -c 'import json, sys; titles = {
                   d["title"] for d in json.load(sys.stdin)}; assert {
                   "MCP tool rate limits"} <= titles, titles'
+      - name: Test per-tool circuit breaker demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh tool-circuit-breaking logs --tail=100 || true
+              fi
+              ./run.sh tool-circuit-breaking down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh tool-circuit-breaking
+          python3 tool-circuit-breaking/check.py
+          curl --fail --retry 30 --retry-connrefused --retry-delay 1 \
+              http://127.0.0.1:3000/api/health
+          curl --fail -u admin:admin \
+              'http://127.0.0.1:3000/api/search?query=MCP' | \
+              python3 -c 'import json, sys; titles = {
+                  d["title"] for d in json.load(sys.stdin)}; assert {
+                  "MCP tool circuit breaker"} <= titles, titles'
       - name: Test server-side observability demo
         run: |
           cleanup() {

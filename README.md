@@ -126,6 +126,7 @@ select each source separately to make its contribution clear.
 | [MCP server-side observability](demo/server-observability/README.md) | Observability | Python information backend operation outcomes | `./run.sh server-observability` |
 | [MCP response observability with njs](demo/njs-response-observability/README.md) | Observability | JSON response outcomes at NGINX | `./run.sh njs-response-observability` |
 | [Per-tool rate limits](demo/tool-rate-limiting/README.md) | Protection | Independent tool limits with NGINX OSS | `./run.sh tool-rate-limiting` |
+| [Per-tool circuit breaker](demo/tool-circuit-breaking/README.md) | Protection | Blocks failing tools with OSS and njs | `./run.sh tool-circuit-breaking` |
 
 Each example starts its backends, monitoring stack and traffic generator.
 See [the demo guide](demo/README.md) for setup and verification.

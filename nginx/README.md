@@ -12,6 +12,7 @@ The examples use 1.31.6 and load `ngx_otel_module.so` for tracing.
 | mcp-otel.conf | server/location | Exports known tool/backend, protocol and upstream attributes; requires OTel module |
 | mcp-njs.conf | http | Declares observer import and request state; requires njs/mcp-observer.mjs and JS module |
 | mcp-rate-limit.conf | location | Applies the mcp_tools limit zone; requires @mcp_rate_limited for JSON HTTP 429 |
+| mcp-breaker.conf | http | Shared failure state and admission/record variables; requires njs/mcp-breaker.mjs |
 
 Load metadata at http scope and supply an allowlist map from
 `$mcp_body_tool` to `$mcp_upstream` (empty means denied). Metadata maps

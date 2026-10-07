@@ -1,0 +1,80 @@
+{
+  "uid": "mcp-breaker",
+  "title": "MCP tool circuit breaker",
+  "schemaVersion": 41,
+  "version": 3,
+  "refresh": "5s",
+  "time": {"from": "now-5m", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Tool failures and NGINX protection",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 12},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps", "min": 0,
+          "custom": {
+            "axisLabel": "calls/s", "axisPlacement": "left",
+            "lineWidth": 2, "fillOpacity": 0,
+            "stacking": {"mode": "none", "group": "A"}
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byFrameRefID", "options": "A"},
+            "properties": [
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}
+            ]
+          },
+          {
+            "matcher": {"id": "byFrameRefID", "options": "B"},
+            "properties": [
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}},
+              {"id": "custom.drawStyle", "value": "bars"},
+              {"id": "custom.fillOpacity", "value": 90},
+              {"id": "custom.lineWidth", "value": 0}
+            ]
+          },
+          {
+            "matcher": {"id": "byFrameRefID", "options": "C"},
+            "properties": [
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}},
+              {"id": "custom.fillOpacity", "value": 15}
+            ]
+          },
+          {
+            "matcher": {"id": "byFrameRefID", "options": "D"},
+            "properties": [
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}},
+              {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [4, 4]}}
+            ]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "desc"},
+        "legend": {"displayMode": "list", "placement": "bottom"}
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(edge_calls_total{gen_ai_tool_name=\"get_forecast\",mcp_breaker_admission=\"passed\",http_status_code=\"200\",mcp_outcome=\"complete\"}[15s]))",
+          "legendFormat": "get_forecast: success", "refId": "A"
+        },
+        {
+          "expr": "sum(rate(edge_calls_total{gen_ai_tool_name=\"get_forecast\",mcp_breaker_admission=\"passed\",mcp_outcome=\"rpc_error\"}[15s]))",
+          "legendFormat": "get_forecast: RPC errors", "refId": "B"
+        },
+        {
+          "expr": "sum(rate(edge_calls_total{gen_ai_tool_name=\"get_forecast\",mcp_breaker_admission=\"blocked\"}[15s]))",
+          "legendFormat": "get_forecast: blocked by NGINX", "refId": "C"
+        },
+        {
+          "expr": "sum(rate(edge_calls_total{gen_ai_tool_name=\"search_web\",mcp_breaker_admission=\"passed\",http_status_code=\"200\",mcp_outcome=\"complete\"}[15s]))",
+          "legendFormat": "search_web: success", "refId": "D"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+services:
+  nginx:
+    volumes:
+      - ./tool-circuit-breaking/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../njs:/etc/nginx/njs:ro
+  otel-collector:
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+      - --config=/etc/otelcol-contrib/pipelines/edge.yaml
+      - --config=/etc/otelcol-contrib/pipelines/breaker.yaml
+  grafana:
+    volumes:
+      - ./tool-circuit-breaking/providers.yaml:/etc/grafana/provisioning/dashboards/providers.yaml:ro
+      - ../observability/grafana/breaker:/var/lib/grafana/breaker:ro
+  mcp-client:
+    command:
+      - /mcp_client
+      - -url
+      - http://nginx:9000/mcp
+      - -tool
+      - get_forecast
+      - -failure-cycle
+      - 2m
+      - -workers
+      - "2"
+      - -rps
+      - "4"
+      - -duration
+      - 24h
+  mcp-client-steady:
+    image: mcp-demo:2026-07-28
+    restart: unless-stopped
+    command:
+      - /mcp_client
+      - -url
+      - http://nginx:9000/mcp
+      - -tool
+      - search_web
+      - -workers
+      - "1"
+      - -rps
+      - "2"
+      - -duration
+      - 24h
+      - -tool-error-percent
+      - "0"
+      - -rpc-error-percent
+      - "0"
+      - -header-error-percent
+      - "0"
+      - -policy-denial-percent
+      - "0"
+      - -input-required-percent
+      - "0"
+    depends_on:
+      - nginx
+    networks:
+      - mcp-network

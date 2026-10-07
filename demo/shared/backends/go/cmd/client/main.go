@@ -46,13 +46,14 @@ var clientProfiles = []clientProfile{
 }
 
 type config struct {
-	url         string
-	duration    time.Duration
-	workers     int
-	maxRequests int
-	rps         int
-	mix         scenarioMix
-	tool        string
+	url          string
+	duration     time.Duration
+	workers      int
+	maxRequests  int
+	rps          int
+	mix          scenarioMix
+	tool         string
+	failureCycle time.Duration
 }
 
 type scenarioMix struct {
@@ -127,6 +128,8 @@ func main() {
 	policyDenials := flag.Int("policy-denial-percent", 5, "Edge denial share")
 	interim := flag.Int("input-required-percent", 5, "Interim result share")
 	targetTool := flag.String("tool", "", "Send calls to this tool")
+	failureCycle := flag.Duration("failure-cycle", 0,
+		"Alternate simulated RPC failures and success on the target tool")
 	flag.Parse()
 
 	duration, err := time.ParseDuration(*durationValue)
@@ -144,6 +147,9 @@ func main() {
 	if total > 100 || *workers < 1 || *rps < 1 || duration <= 0 {
 		log.Fatal("invalid mix, workers, request rate or duration")
 	}
+	if *failureCycle < 0 || (*failureCycle > 0 && *targetTool == "") {
+		log.Fatal("failure-cycle requires a target tool and positive duration")
+	}
 
 	cfg := &config{
 		url:         *targetURL,
@@ -153,7 +159,8 @@ func main() {
 		rps:         *rps,
 		mix: scenarioMix{*toolErrors, *rpcErrors, *headerErrors,
 			*policyDenials, *interim},
-		tool: *targetTool,
+		tool:         *targetTool,
+		failureCycle: *failureCycle,
 	}
 
 	log.Printf("starting MCP %s load generator", protocolVersion)
@@ -263,6 +270,7 @@ func runWorker(
 	defer ticker.Stop()
 	var requestCount int
 	var requestID int64
+	cycleStart := time.Now()
 
 	for ctx.Err() == nil {
 		if cfg.maxRequests > 0 && requestCount >= cfg.maxRequests {
@@ -279,6 +287,15 @@ func runWorker(
 		toolName := distribution.selectTool()
 		scenario := cfg.mix.scenario(requestCount - 1)
 		toolName = scenarioTool(toolName, scenario)
+		if cfg.tool != "" {
+			toolName = cfg.tool
+		}
+		if cfg.failureCycle > 0 {
+			scenario = "success"
+			if time.Since(cycleStart)%cfg.failureCycle < cfg.failureCycle/2 {
+				scenario = "rpc_error"
+			}
+		}
 		started := time.Now()
 
 		result, bytesRead, err := callTool(

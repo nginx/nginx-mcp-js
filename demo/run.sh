@@ -11,7 +11,8 @@ if [ "$#" -gt 0 ]; then
 fi
 
 case "$mode" in
-    native-routing|tool-rate-limiting|server-observability|\
+    native-routing|tool-rate-limiting|tool-circuit-breaking|\
+    server-observability|\
     njs-response-observability|\
     njs-response-observability-python) ;;
     *)
@@ -19,6 +20,7 @@ case "$mode" in
             "Usage: $0 <example> [compose command...]" \
             "Examples: native-routing, server-observability," \
             "          tool-rate-limiting," \
+            "          tool-circuit-breaking," \
             "          njs-response-observability," \
             "          njs-response-observability-python" >&2
         exit 1
