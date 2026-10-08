@@ -27,11 +27,11 @@ def get(url):
         return json.load(response)
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://127.0.0.1:9000/mcp")
     parser.add_argument("--grafana", default="http://127.0.0.1:3000")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     grafana = args.grafana.rstrip("/")
     for attempt in range(60):
         try:
@@ -133,6 +133,7 @@ def main():
         print(f"\nPASS {name}: HTTP {status}, {outcome}")
         print(link)
     print("\nPASS Loki ingestion, request search and dashboard queries")
+    return records, expected
 
 
 if __name__ == "__main__":

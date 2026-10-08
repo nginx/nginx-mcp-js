@@ -1,0 +1,16 @@
+processors:
+  batch/traces:
+    timeout: 1s
+
+exporters:
+  otlp_grpc/tempo:
+    endpoint: audit-tempo:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces/storage:
+      receivers: [otlp]
+      processors: [batch/traces]
+      exporters: [otlp_grpc/tempo]

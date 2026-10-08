@@ -1,0 +1,18 @@
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://audit-loki:3100
+    uid: mcp-audit-loki
+    editable: false
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: mcp-audit-tempo
+          matcherRegex: 'trace_id'
+          matcherType: label
+          name: TraceID
+          url: '$${__value.raw}'
+          urlDisplayLabel: View trace
