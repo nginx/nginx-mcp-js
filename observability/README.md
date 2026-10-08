@@ -44,3 +44,8 @@ an indexed stream per request.
 with tool, decision, outcome and request-ID filters. It expects a Loki
 datasource with UID `mcp-audit-loki`. See the
 [searchable audit demo](../demo/searchable-audit/README.md).
+
+`otel/traces.yaml` exports all received spans to Tempo independently of
+the edge-only spanmetrics pipeline. `tempo/audit.yaml` provides local
+trace storage. The [audit and traces demo](../demo/audit-traces/README.md)
+adds backend spans and Grafana links between traces and audit events.

@@ -108,6 +108,19 @@ jobs:
           trap cleanup EXIT
           ./run.sh searchable-audit
           python3 searchable-audit/check.py
+      - name: Test audit and traces demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh audit-traces logs --tail=100 || true
+              fi
+              ./run.sh audit-traces down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh audit-traces
+          python3 audit-traces/check.py
       - name: Test server-side observability demo
         run: |
           cleanup() {
