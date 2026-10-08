@@ -7,8 +7,9 @@ Inspect individual [MCP] tool calls and gateway decisions as JSON events.
 Extracts MCP metadata with [`json_set`][json-set] and writes request events
 using [`log_format escape=json`][log-format] and [`access_log`][access-log].
 Validation records rejection reasons; an [njs] response filter adds MCP
-outcomes. Configure the format, filter, correlation IDs and log destination
-in the [NGINX configuration](nginx.conf).
+outcomes. Configure the format, filter and correlation IDs in the
+[NGINX configuration](nginx.conf) and
+[audit log destination](audit-logs.conf).
 
 ## Demo environment
 

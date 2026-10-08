@@ -1,0 +1,42 @@
+services:
+  nginx:
+    volumes:
+      - ./searchable-audit/audit-logs.conf:/etc/nginx/audit-logs.conf:ro
+      - searchable-audit-logs:/var/log/nginx/audit
+  otel-collector:
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+      - --config=/etc/otelcol-contrib/pipelines/edge.yaml
+      - --config=/etc/otelcol-contrib/pipelines/njs.yaml
+      - --config=/etc/otelcol-contrib/pipelines/audit.yaml
+    volumes:
+      - searchable-audit-logs:/var/log/nginx/audit:ro
+      - searchable-audit-checkpoints:/var/lib/otelcol
+    depends_on:
+      audit-storage-init:
+        condition: service_completed_successfully
+      audit-loki:
+        condition: service_started
+  audit-storage-init:
+    image: alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11
+    command: ["chown", "-R", "10001:10001", "/storage"]
+    volumes:
+      - searchable-audit-checkpoints:/storage
+  audit-loki:
+    image: grafana/loki:3.7.4@sha256:87f0a067673756a3cede1bcbf0c74875f7df9b09fddb53e399d0c576f756cfcc
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ../observability/loki/audit.yaml:/etc/loki/config.yaml:ro
+      - searchable-audit-data:/loki
+    networks:
+      - mcp-network
+  grafana:
+    volumes:
+      - ./searchable-audit/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./searchable-audit/providers.yaml:/etc/grafana/provisioning/dashboards/providers.yaml:ro
+      - ../observability/grafana/audit:/var/lib/grafana/audit:ro
+
+volumes:
+  searchable-audit-logs:
+  searchable-audit-checkpoints:
+  searchable-audit-data:
