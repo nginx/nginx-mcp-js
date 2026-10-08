@@ -1,0 +1,37 @@
+extensions:
+  file_storage/audit:
+    directory: /var/lib/otelcol/audit
+    create_directory: true
+
+receivers:
+  filelog/audit:
+    include: [/var/log/nginx/audit/*.json]
+    start_at: beginning
+    storage: file_storage/audit
+    operators:
+      - type: json_parser
+        timestamp:
+          parse_from: attributes.timestamp
+          layout_type: gotime
+          layout: 2006-01-02T15:04:05Z07:00
+
+processors:
+  resource/audit:
+    attributes:
+      - key: service.name
+        value: nginx-mcp-edge
+        action: upsert
+  batch/audit:
+    timeout: 1s
+
+exporters:
+  otlp_http/audit:
+    endpoint: http://audit-loki:3100/otlp
+
+service:
+  extensions: [file_storage/audit]
+  pipelines:
+    logs/audit:
+      receivers: [filelog/audit]
+      processors: [resource/audit, batch/audit]
+      exporters: [otlp_http/audit]

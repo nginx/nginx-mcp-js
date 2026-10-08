@@ -95,6 +95,19 @@ jobs:
           ./run.sh structured-audit
           ./run.sh structured-audit stop mcp-client
           python3 structured-audit/check.py
+      - name: Test searchable audit demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh searchable-audit logs --tail=100 || true
+              fi
+              ./run.sh searchable-audit down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh searchable-audit
+          python3 searchable-audit/check.py
       - name: Test server-side observability demo
         run: |
           cleanup() {

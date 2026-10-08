@@ -33,3 +33,14 @@ Display names explain numeric RPC codes while retaining raw SDK metrics.
 dimensions. Load it after edge.yaml. It keeps the same single HTTP request
 counter; semantic outcomes come from NGINX's njs observer rather than SDK
 execution spans. `grafana/njs/mcp-njs.json` adds edge outcome panels.
+
+`otel/audit.yaml` tails structured NGINX audit files with a persistent
+checkpoint and exports logs over OTLP to Loki. `loki/audit.yaml` provides
+single-instance storage with only service name indexed. Event fields are
+structured metadata, so request IDs remain searchable without creating
+an indexed stream per request.
+
+`grafana/audit/mcp-audit.json` shows readable event summaries and full JSON
+with tool, decision, outcome and request-ID filters. It expects a Loki
+datasource with UID `mcp-audit-loki`. See the
+[searchable audit demo](../demo/searchable-audit/README.md).

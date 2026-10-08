@@ -12,7 +12,7 @@ fi
 
 case "$mode" in
     native-routing|tool-rate-limiting|tool-circuit-breaking|\
-    server-observability|structured-audit|\
+    server-observability|structured-audit|searchable-audit|\
     njs-response-observability|\
     njs-response-observability-python) ;;
     *)
@@ -22,6 +22,7 @@ case "$mode" in
             "          tool-rate-limiting," \
             "          tool-circuit-breaking," \
             "          structured-audit," \
+            "          searchable-audit," \
             "          njs-response-observability," \
             "          njs-response-observability-python" >&2
         exit 1
@@ -44,6 +45,9 @@ if [ "$mode" = server-observability ] || \
     fi
     set -- -f "$script_dir/shared/python.yaml" \
         -f "$script_dir/$example/compose.yaml" "$@"
+elif [ "$mode" = searchable-audit ]; then
+    set -- -f "$script_dir/structured-audit/compose.yaml" \
+        -f "$script_dir/searchable-audit/compose.yaml" "$@"
 else
     set -- -f "$script_dir/$mode/compose.yaml" "$@"
 fi

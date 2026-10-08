@@ -1,0 +1,7 @@
+apiVersion: 1
+
+providers:
+  - name: MCP audit
+    type: file
+    options:
+      path: /var/lib/grafana/audit
