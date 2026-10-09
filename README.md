@@ -120,18 +120,22 @@ select each source separately to make its contribution clear.
 
 ## Demo catalog
 
-| Example | Type | Adds | Run from demo/ |
-| --- | --- | --- | --- |
-| [Native MCP routing and HTTP observability](demo/native-routing/README.md) | Observability | Body routing and HTTP telemetry, without njs | `./run.sh native-routing` |
-| [MCP server-side observability](demo/server-observability/README.md) | Observability | Python information backend operation outcomes | `./run.sh server-observability` |
-| [MCP response observability with njs](demo/njs-response-observability/README.md) | Observability | JSON response outcomes at NGINX | `./run.sh njs-response-observability` |
-| [MCP structured gateway audit](demo/structured-audit/README.md) | Audit logs | JSON events explaining tool calls and gateway rejections | `./run.sh structured-audit` |
-| [MCP searchable gateway audit](demo/searchable-audit/README.md) | Audit logs | Search tool calls and gateway decisions in Loki and Grafana | `./run.sh searchable-audit` |
-| [MCP audit and traces](demo/audit-traces/README.md) | Audit logs / Tracing | Follow an audit event through gateway and backend spans | `./run.sh audit-traces` |
-| [Per-tool rate limits](demo/tool-rate-limiting/README.md) | Protection | Independent tool limits with NGINX OSS | `./run.sh tool-rate-limiting` |
-| [Per-tool circuit breaker](demo/tool-circuit-breaking/README.md) | Protection | Blocks failing tools with OSS and njs | `./run.sh tool-circuit-breaking` |
+| Example | Edition | Type | Adds | Run from demo/ |
+| --- | --- | --- | --- | --- |
+| [Native MCP routing and HTTP observability](demo/native-routing/README.md) | OSS | Observability | Body routing and HTTP telemetry, without njs | `./run.sh native-routing` |
+| [MCP server-side observability](demo/server-observability/README.md) | OSS | Observability | Python information backend operation outcomes | `./run.sh server-observability` |
+| [MCP response observability with njs](demo/njs-response-observability/README.md) | OSS | Observability | JSON response outcomes at NGINX | `./run.sh njs-response-observability` |
+| [MCP structured gateway audit](demo/structured-audit/README.md) | OSS | Audit logs | JSON events explaining tool calls and gateway rejections | `./run.sh structured-audit` |
+| [MCP searchable gateway audit](demo/searchable-audit/README.md) | OSS | Audit logs | Search tool calls and gateway decisions in Loki and Grafana | `./run.sh searchable-audit` |
+| [MCP audit and traces](demo/audit-traces/README.md) | OSS | Audit logs / Tracing | Follow an audit event through gateway and backend spans | `./run.sh audit-traces` |
+| [Per-tool rate limits](demo/tool-rate-limiting/README.md) | OSS | Protection | Independent tool limits with NGINX OSS | `./run.sh tool-rate-limiting` |
+| [Per-tool circuit breaker](demo/tool-circuit-breaking/README.md) | OSS | Protection | Blocks failing tools with OSS and njs | `./run.sh tool-circuit-breaking` |
+| [MCP OAuth resource protection](demo/oauth-resource-protection/README.md) | [Plus](https://www.f5.com/products/nginx) | Authorization | Token validation, tool permissions and verified identity; web UI and CLI | `./oauth-resource-protection/run.sh up` |
 
-Each example starts its backends, monitoring stack and traffic generator.
+Plus requires a commercial subscription.
+
+Each example starts its backends and monitoring stack, with a traffic
+generator or interactive scenarios.
 See [the demo guide](demo/README.md) for setup and verification.
 
 ## Reusable artifacts
