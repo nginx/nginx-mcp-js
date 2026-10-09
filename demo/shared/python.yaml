@@ -1,0 +1,9 @@
+services:
+  mcp-information:
+    image: mcp-python:2.3.0
+    build:
+      context: ./shared/backends/python
+      args: !reset {}
+    command: ["python", "server.py"]
+    environment:
+      MCP_TELEMETRY: "off"

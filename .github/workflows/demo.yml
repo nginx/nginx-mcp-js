@@ -1,0 +1,168 @@
+name: MCP demo
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  examples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: demo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '25'
+      - name: Test response observer
+        run: |
+          node ../t/mcp_observer.mjs
+          node ../t/mcp_breaker.mjs
+      - name: Test native routing demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh native-routing logs --tail=100 || true
+              fi
+              ./run.sh native-routing down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh native-routing
+          python3 shared/scenarios/check.py \
+              --prometheus http://127.0.0.1:9090
+          curl --fail --retry 30 --retry-connrefused --retry-delay 1 \
+              http://127.0.0.1:3000/api/health
+          curl --fail -u admin:admin \
+              'http://127.0.0.1:3000/api/search?query=MCP' | \
+              python3 -c 'import json, sys; titles = {
+                  d["title"] for d in json.load(sys.stdin)}; assert {
+                  "MCP native HTTP edge"} <= titles, titles'
+      - name: Test per-tool rate limiting demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh tool-rate-limiting logs --tail=100 || true
+              fi
+              ./run.sh tool-rate-limiting down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh tool-rate-limiting
+          python3 tool-rate-limiting/check.py
+          curl --fail --retry 30 --retry-connrefused --retry-delay 1 \
+              http://127.0.0.1:3000/api/health
+          curl --fail -u admin:admin \
+              'http://127.0.0.1:3000/api/search?query=MCP' | \
+              python3 -c 'import json, sys; titles = {
+                  d["title"] for d in json.load(sys.stdin)}; assert {
+                  "MCP tool rate limits"} <= titles, titles'
+      - name: Test per-tool circuit breaker demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh tool-circuit-breaking logs --tail=100 || true
+              fi
+              ./run.sh tool-circuit-breaking down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh tool-circuit-breaking
+          python3 tool-circuit-breaking/check.py
+          curl --fail --retry 30 --retry-connrefused --retry-delay 1 \
+              http://127.0.0.1:3000/api/health
+          curl --fail -u admin:admin \
+              'http://127.0.0.1:3000/api/search?query=MCP' | \
+              python3 -c 'import json, sys; titles = {
+                  d["title"] for d in json.load(sys.stdin)}; assert {
+                  "MCP tool circuit breaker"} <= titles, titles'
+      - name: Test structured audit demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh structured-audit logs --tail=100 || true
+              fi
+              ./run.sh structured-audit down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh structured-audit
+          ./run.sh structured-audit stop mcp-client
+          python3 structured-audit/check.py
+      - name: Test searchable audit demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh searchable-audit logs --tail=100 || true
+              fi
+              ./run.sh searchable-audit down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh searchable-audit
+          python3 searchable-audit/check.py
+      - name: Test audit and traces demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh audit-traces logs --tail=100 || true
+              fi
+              ./run.sh audit-traces down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh audit-traces
+          python3 audit-traces/check.py
+      - name: Test server-side observability demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh server-observability logs --tail=100 || true
+              fi
+              ./run.sh server-observability down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh server-observability
+          python3 shared/scenarios/check.py --sdk \
+              --prometheus http://127.0.0.1:9090
+          curl --fail --retry 30 --retry-connrefused --retry-delay 1 \
+              http://127.0.0.1:3000/api/health
+          curl --fail -u admin:admin \
+              'http://127.0.0.1:3000/api/search?query=MCP' | \
+              python3 -c 'import json, sys; titles = {
+                  d["title"] for d in json.load(sys.stdin)}; assert {
+                  "MCP native HTTP edge", "MCP server-side outcomes"
+                  } <= titles, titles'
+      - name: Test njs response observability demo
+        run: |
+          cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                  ./run.sh njs-response-observability logs --tail=100 \
+                      || true
+              fi
+              ./run.sh njs-response-observability down || status=$?
+              exit "$status"
+          }
+          trap cleanup EXIT
+          ./run.sh njs-response-observability
+          python3 shared/scenarios/check.py --njs \
+              --prometheus http://127.0.0.1:9090
+          curl --fail --retry 30 --retry-connrefused --retry-delay 1 \
+              http://127.0.0.1:3000/api/health
+          curl --fail -u admin:admin \
+              'http://127.0.0.1:3000/api/search?query=MCP' | \
+              python3 -c 'import json, sys; titles = {
+                  d["title"] for d in json.load(sys.stdin)}; assert {
+                  "MCP native HTTP edge", "MCP njs edge outcomes"
+                  } <= titles, titles'

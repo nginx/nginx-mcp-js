@@ -28,3 +28,6 @@ Thumbs.db
 # Logs #
 ########
 *.log
+
+demo/.env
+demo/oauth-resource-protection/.state/

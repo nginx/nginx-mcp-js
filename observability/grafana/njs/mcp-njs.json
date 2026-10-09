@@ -1,0 +1,45 @@
+{
+  "uid": "mcp-njs",
+  "title": "MCP njs edge outcomes",
+  "schemaVersion": 41,
+  "version": 2,
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "MCP response outcomes",
+      "fieldConfig": {
+        "defaults": {"unit": "reqps", "custom": {"axisLabel": "responses/s"}},
+        "overrides": []
+      },
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [{
+        "expr": "sum by (mcp_outcome) (rate(edge_calls_total[1m]))",
+        "legendFormat": "{{mcp_outcome}}", "refId": "A"
+      }]
+    },
+    {
+      "id": 2,
+      "title": "MCP errors in HTTP 200 responses",
+      "fieldConfig": {
+        "defaults": {"unit": "reqps", "custom": {"axisLabel": "errors/s"}},
+        "overrides": []
+      },
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [{
+        "expr": "sum by (gen_ai_tool_name) (rate(edge_calls_total{http_status_code=\"200\",mcp_outcome=\"tool_error\"}[1m])) > 0",
+        "legendFormat": "{{gen_ai_tool_name}}: tool error",
+        "refId": "A"
+      }, {
+        "expr": "sum by (gen_ai_tool_name) (rate(edge_calls_total{http_status_code=\"200\",mcp_outcome=\"rpc_error\"}[1m])) > 0",
+        "legendFormat": "{{gen_ai_tool_name}}: RPC error",
+        "refId": "B"
+      }]
+    }
+  ]
+}

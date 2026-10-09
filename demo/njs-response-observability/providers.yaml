@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: http
+    type: file
+    options:
+      path: /var/lib/grafana/http
+  - name: njs
+    type: file
+    options:
+      path: /var/lib/grafana/njs

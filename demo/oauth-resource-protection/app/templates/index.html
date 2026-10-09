@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP OAuth resource protection</title>
+<style>
+body { max-width: 1120px; margin: 24px auto; padding: 0 20px;
+       font: 16px/1.5 system-ui, sans-serif; color: #172b3a; }
+h1, h2 { line-height: 1.2; }
+button { padding: 8px 14px; cursor: pointer; }
+.toolbar, .links { display: flex; flex-wrap: wrap; gap: 12px;
+                   align-items: center; }
+.layout { display: grid; grid-template-columns: 320px minmax(0, 1fr);
+          gap: 24px; align-items: start; margin-top: 24px; }
+.scenarios { grid-column: 1; grid-row: 1; min-width: 0; }
+.result { grid-column: 2; grid-row: 1; min-width: 0;
+          padding: 20px; border: 1px solid #cad6df; border-radius: 8px;
+          background: #f8fafb; }
+.result h2, .scenarios h2 { margin-top: 0; }
+.card { padding: 12px 0; border-bottom: 1px solid #cad6df; }
+.card p { margin: 6px 0; font-size: 14px; }
+.card button { width: 100%; text-align: left; }
+dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; }
+dt { font-weight: 600; } dd { margin: 0; overflow-wrap: anywhere; }
+details { margin-top: 20px; }
+summary { cursor: pointer; font-weight: 600; }
+pre { overflow: auto; max-height: 420px; background: #edf2f5; padding: 12px; }
+.links a { padding: 8px 12px; border: 1px solid #cad6df;
+           border-radius: 4px; }
+.pass { color: #087640; } .fail { color: #b12020; }
+@media (max-width: 760px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .result { grid-column: 1; grid-row: 1; }
+    .scenarios { grid-column: 1; grid-row: 2; }
+}
+</style>
+<h1>MCP OAuth resource protection</h1>
+<p>NGINX Plus validates access tokens and permissions before calling a tool.
+It checks tool permissions, replaces caller identity with verified claims,
+and records its decisions in audit logs and traces. Requires an NGINX Plus
+<a href="https://www.f5.com/products/nginx">commercial subscription</a>.</p>
+<details>
+<summary>What NGINX does: key configuration</summary>
+<p>NGINX is the OAuth resource-server boundary. It advertises resource
+metadata, challenges unauthenticated clients with HTTP 401, validates JWT
+signatures and time claims, and checks issuer, audience and token profile.
+Tool policy runs after authentication; missing scope returns HTTP 403.</p>
+<pre><code>location = /mcp {
+    auth_jwt "MCP";
+    auth_jwt_key_request /_jwks;
+    auth_jwt_require $mcp_token_profile;
+
+    internal_redirect @mcp_authenticated;
+}
+
+location @mcp_authenticated {
+    if ($mcp_scope_allowed = 0) {
+        return 403;
+    }
+
+    proxy_set_header Authorization "";
+    proxy_set_header X-User $jwt_claim_sub;
+    proxy_pass http://information;
+}</code></pre>
+<p>Illustrative excerpt. The full configuration also checks MCP headers
+against the request body, sets Bearer challenges, and exports audit events
+and optional OpenTelemetry spans. The njs token-profile predicate runs
+only after JWT signature validation.</p>
+<p>Documentation:
+<a href="https://nginx.org/en/docs/http/ngx_http_auth_jwt_module.html">auth_jwt</a>,
+<a href="https://nginx.org/en/docs/http/ngx_http_internal_redirect_module.html">internal_redirect</a>,
+<a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization">MCP authorization</a>.</p>
+</details>
+<details>
+<summary>What the demo environment does</summary>
+<ul>
+    <li>Python is the OAuth client: web UI and CLI initiate the same scenarios,
+    discover the IdP, exchange code + PKCE for tokens, and call MCP.</li>
+    <li>Keycloak performs browser login and consent, issues tokens and
+    publishes signing keys. Login uses the demo account alice / alice.</li>
+    <li>The MCP backend executes allowed tools and confirms the identity
+    headers received from NGINX.</li>
+    <li>Collector, Loki, Tempo and Grafana expose audit decisions and the
+    edge/backend/tool trace. Use the result links to inspect one request.</li>
+</ul>
+<pre>Browser / CLI → Python client ↔ Keycloak login + consent
+                       ↓ access token
+                  NGINX Plus → MCP backend
+                       ↓ audit + traces
+                    Grafana</pre>
+<p>Calls using your login require an application access token. Token
+validation fixtures are independently signed test tokens; they work even
+after clearing application login. Clear removes application tokens only;
+Log out from IdP also ends browser SSO. Previously issued JWTs may remain
+valid until expiry.</p>
+</details>
+<div class="toolbar">
+<form method="post" action="/login">
+    <input type="hidden" name="csrf" value="{{ record.csrf }}">
+    <button>Log in and call a tool</button>
+</form>
+<form method="post" action="/logout">
+    <input type="hidden" name="csrf" value="{{ record.csrf }}">
+    <button>Clear application login</button>
+</form>
+<form method="post" action="/idp-logout">
+    <input type="hidden" name="csrf" value="{{ record.csrf }}">
+    <button {% if not record.token %}disabled{% endif %}>Log out from IdP</button>
+</form>
+<span>Session: {{ 'authenticated' if record.token else 'not logged in' }}</span>
+</div>
+<p>Demo user: <strong>alice</strong>, password: <strong>alice</strong></p>
+
+{% macro scenario_button(name, description) %}
+<form class="card" method="post" action="/scenario/{{ name }}">
+    <input type="hidden" name="csrf" value="{{ record.csrf }}">
+    <button>{{ name }}</button>
+    <p>{{ description[0] }}</p>
+    <p>Expected HTTP {{ description[1] }}</p>
+</form>
+{% endmacro %}
+
+<main class="layout">
+<section class="result" aria-labelledby="result-title">
+{% if record.result %}
+{% set result = record.result %}
+<h2 id="result-title" tabindex="-1">Result: {{ result.scenario }}</h2>
+<strong class="{{ 'pass' if result.passed else 'fail' }}">
+    {{ 'PASS' if result.passed else 'FAIL' }}
+</strong>
+<p>HTTP {{ result.http_status }} · MCP outcome: {{ result.outcome }}</p>
+<dl>
+    <dt>NGINX decision</dt><dd>{{ result.audit.gateway.decision }}</dd>
+    <dt>Reason</dt><dd>{{ result.audit.gateway.reason or 'allowed' }}</dd>
+    <dt>Backend called</dt>
+    <dd>{{ 'Yes' if result.audit.upstream.attempted else 'No' }}</dd>
+    <dt>Required scope</dt>
+    <dd>{{ result.audit.auth.required_scope or 'Not evaluated' }}</dd>
+    <dt>Verified subject</dt>
+    <dd>{{ result.audit.auth.subject or 'Not authenticated' }}</dd>
+    <dt>Request ID</dt><dd><code>{{ result.request_id }}</code></dd>
+</dl>
+<div class="links">
+{% for name, url in result.links.items() %}
+<a href="{{ url }}" target="_blank" rel="noopener">{{ name | title }} in Grafana</a>
+{% endfor %}
+</div>
+{% else %}
+<h2 id="result-title" tabindex="-1">Result</h2>
+<p>Choose a scenario or log in to call a tool. The response and NGINX
+decision will appear here, with links to the audit event and trace.</p>
+{% endif %}
+{% if record.steps %}
+<details>
+<summary>Authorization flow</summary>
+<ol>{% for step in record.steps %}<li>{{ step }}</li>{% endfor %}</ol>
+</details>
+{% endif %}
+{% if record.result %}
+<details>
+<summary>Full NGINX audit JSON</summary>
+<pre>{{ result.audit | tojson(indent=2) }}</pre>
+</details>
+{% if result.challenge %}
+<details>
+<summary>Bearer challenge</summary>
+<pre>{{ result.challenge }}</pre>
+</details>
+{% endif %}
+<script>
+document.getElementById('result-title').focus({preventScroll: true});
+</script>
+{% endif %}
+</section>
+
+<section class="scenarios" aria-labelledby="scenarios-title">
+<h2 id="scenarios-title">Scenarios</h2>
+{% set primary = ['no-token', 'allowed-call', 'insufficient-scope',
+                  'spoofed-identity'] %}
+{% for name in primary %}
+{{ scenario_button(name, scenarios[name]) }}
+{% endfor %}
+<details>
+<summary>Token validation tests</summary>
+{% for name, description in scenarios.items() %}
+{% if name not in primary %}
+{{ scenario_button(name, description) }}
+{% endif %}
+{% endfor %}
+</details>
+</section>
+</main>
+</html>

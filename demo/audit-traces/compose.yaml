@@ -1,0 +1,56 @@
+services:
+  nginx:
+    volumes:
+      - ./audit-traces/tracing.conf:/etc/nginx/audit-tracing.conf:ro
+  mcp-information:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: mcp-information
+    command: [/mcp_server, --name, mcp-information, --backend, information,
+              --port, "9001", --allow-simulation, --tracing]
+  mcp-operations:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: mcp-operations
+    command: [/mcp_server, --name, mcp-operations, --backend, operations,
+              --port, "9002", --allow-simulation, --max-latency, 100ms,
+              --tracing]
+  mcp-data:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: mcp-data
+    command: [/mcp_server, --name, mcp-data, --backend, data,
+              --port, "9003", --allow-simulation, --tracing]
+  otel-collector:
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+      - --config=/etc/otelcol-contrib/pipelines/edge.yaml
+      - --config=/etc/otelcol-contrib/pipelines/njs.yaml
+      - --config=/etc/otelcol-contrib/pipelines/audit.yaml
+      - --config=/etc/otelcol-contrib/pipelines/traces.yaml
+    depends_on:
+      audit-tempo:
+        condition: service_started
+  audit-tempo-storage-init:
+    image: alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11
+    command: [chown, -R, "10001:10001", /storage]
+    network_mode: none
+    volumes:
+      - audit-traces-data:/storage
+  audit-tempo:
+    image: grafana/tempo:2.10.7@sha256:032b3acb51ed02c4b801473d54bb63e9e9f13738d215126d9843c30283794f4b
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    volumes:
+      - ../observability/tempo/audit.yaml:/etc/tempo/config.yaml:ro
+      - audit-traces-data:/var/tempo
+    depends_on:
+      audit-tempo-storage-init:
+        condition: service_completed_successfully
+    networks:
+      - mcp-network
+  grafana:
+    volumes:
+      - ./audit-traces/datasources:/etc/grafana/provisioning/datasources:ro
+
+volumes:
+  audit-traces-data:

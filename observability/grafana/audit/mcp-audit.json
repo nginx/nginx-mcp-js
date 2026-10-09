@@ -1,0 +1,79 @@
+{
+  "uid": "mcp-searchable-audit",
+  "title": "MCP searchable audit",
+  "schemaVersion": 42,
+  "version": 1,
+  "tags": ["mcp", "audit"],
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "tool", "label": "Tool", "type": "custom",
+        "query": "get_forecast,search_web,translate_text,resize_image,send_email,get_stock_price,calculate_sum,query_db,unknown",
+        "includeAll": true, "allValue": ".*",
+        "current": {"text": "All", "value": "$__all"}
+      },
+      {
+        "name": "decision", "label": "Gateway decision", "type": "custom",
+        "query": "forwarded,rejected",
+        "includeAll": true, "allValue": ".*",
+        "current": {"text": "All", "value": "$__all"}
+      },
+      {
+        "name": "outcome", "label": "MCP outcome", "type": "custom",
+        "query": "complete,rpc_error,tool_error,input_required,unobserved",
+        "includeAll": true, "allValue": ".*",
+        "current": {"text": "All", "value": "$__all"}
+      },
+      {
+        "name": "request_id", "label": "Request ID", "type": "textbox",
+        "query": "", "current": {"text": "", "value": ""}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "text", "title": "Investigate a tool call",
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 3},
+      "options": {
+        "mode": "markdown",
+        "content": "Select **MCP outcome = rpc_error** to find failures inside HTTP 200. Select **Gateway decision = rejected** to see why NGINX stopped a call. Paste a checker **Request ID** to isolate one event; reset other filters to All. Expand the JSON event below for header/body metadata and upstream details."
+      }
+    },
+    {
+      "id": 2, "type": "logs", "title": "Tool calls and NGINX decisions",
+      "gridPos": {"x": 0, "y": 3, "w": 24, "h": 10},
+      "datasource": {"type": "loki", "uid": "mcp-audit-loki"},
+      "targets": [
+        {
+          "refId": "A", "queryType": "range", "editorMode": "code",
+          "expr": "{service_name=\"nginx-mcp-edge\"} |= \"${request_id}\" | mcp_tool=~\"${tool:regex}\" | gateway_decision=~\"${decision:regex}\" | mcp_outcome=~\"${outcome:regex}\" | line_format \"{{.mcp_tool}} | HTTP {{.http_status}} | {{.mcp_outcome}} | {{.gateway_decision}} {{.gateway_reason}} | upstream attempted={{.upstream_attempted}} | id={{.request_id}}\""
+        }
+      ],
+      "options": {
+        "showTime": true, "showLabels": false,
+        "showCommonLabels": false, "wrapLogMessage": true,
+        "enableLogDetails": true, "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 3, "type": "logs", "title": "Full audit events",
+      "gridPos": {"x": 0, "y": 13, "w": 24, "h": 10},
+      "datasource": {"type": "loki", "uid": "mcp-audit-loki"},
+      "targets": [
+        {
+          "refId": "A", "queryType": "range", "editorMode": "code",
+          "expr": "{service_name=\"nginx-mcp-edge\"} |= \"${request_id}\" | mcp_tool=~\"${tool:regex}\" | gateway_decision=~\"${decision:regex}\" | mcp_outcome=~\"${outcome:regex}\""
+        }
+      ],
+      "options": {
+        "showTime": true, "showLabels": false,
+        "showCommonLabels": false, "wrapLogMessage": false,
+        "prettifyLogMessage": true, "enableLogDetails": true,
+        "dedupStrategy": "none", "sortOrder": "Descending"
+      }
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "uid": "mcp-sdk",
+  "title": "MCP server-side outcomes",
+  "schemaVersion": 41,
+  "version": 3,
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "MCP operations/s by tool (Python server)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [{
+        "expr": "sum by (gen_ai_tool_name) (rate(mcp_exec_calls_total[1m]))",
+        "legendFormat": "{{gen_ai_tool_name}}", "refId": "A"
+      }]
+    },
+    {
+      "id": 2,
+      "title": "MCP server-side failures/s, including HTTP 200",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "-32603"},
+            "properties": [
+              {"id": "displayName", "value": "Internal RPC error"}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "tool_error"},
+            "properties": [
+              {"id": "displayName", "value": "Tool execution error"}
+            ]
+          }
+        ]
+      },
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [{
+        "expr": "sum by (error_type) (rate(mcp_exec_calls_total{error_type!=\"\"}[1m]))",
+        "legendFormat": "{{error_type}}", "refId": "A"
+      }]
+    }
+  ]
+}

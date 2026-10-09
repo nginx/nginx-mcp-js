@@ -1,0 +1,50 @@
+# MCP JSON response observer
+
+[mcp-observer.mjs](mcp-observer.mjs) is a reusable njs response filter.
+It observes JSON-RPC tool responses while forwarding the original buffers.
+
+Load ngx_http_js_module, set `js_engine qjs` at http scope (recommended),
+and include nginx/snippets/mcp-njs.conf there.
+Set `js_body_filter observer.observe buffer_type=buffer` in the
+proxy location. Export `$mcp_outcome` and `$mcp_rpc_code` as OTel attributes.
+The module stores Buffer chunks in its own property on the request object
+and requires the standard `$upstream_status` variable. It uses no global
+accumulator or NGINX variable for intermediate response data.
+
+| Outcome | Meaning |
+| --- | --- |
+| complete | Complete result with content and no tool error |
+| tool_error | Complete result with isError:true |
+| rpc_error | JSON-RPC error; bounded code in $mcp_rpc_code |
+| input_required | Interim result, not a completed tool success/failure |
+| invalid_response | Invalid JSON or response envelope |
+| unobserved | Non-upstream response, unsupported encoding/media type or byte cap |
+
+Observation is capped at 64 KiB. Chunks are joined once at the end before
+UTF-8 decoding, preserving characters split across buffers. Larger
+responses are still forwarded in full. SSE and compressed responses are
+unobserved; this is a JSON-only observer,
+not a general MCP/SSE parser or full schema validator.
+
+Known RPC codes remain numeric; other codes become `other` for bounded
+metric dimensions. Tool errors do not imply unhealthy infrastructure.
+Run `node t/mcp_observer.mjs` from the root for classifier/filter tests.
+See [the complete example](../demo/njs-response-observability/README.md).
+
+## Tool circuit breaker
+
+[mcp-breaker.mjs](mcp-breaker.mjs) exposes admission and result recording
+as NGINX variables. The deployment supplies `$mcp_breaker_key`, evaluates
+`$mcp_breaker_admission` before proxying and references `$mcp_breaker_record`
+only in its access log, after upstream status and response observation.
+The admission value is cached for the request; outcome recording happens
+once in the log phase. Shared counters and expiring open flags coordinate
+workers without storing mutable state in the JavaScript global context.
+
+The demo policy opens after three failures in a fixed five-second window,
+then blocks for ten seconds. It counts internal RPC errors and upstream
+HTTP 500/502/503/504. Business tool errors, invalid or unobserved JSON and
+interim results do not count as success or reset failures. Existing
+in-flight calls may complete after opening. This is a threshold/cooldown
+example, not a half-open probe scheduler.
+See [the circuit breaker demo](../demo/tool-circuit-breaking/README.md).

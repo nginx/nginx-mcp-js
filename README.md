@@ -1,157 +1,167 @@
-[![Project Status: Concept – Minimal or no implementation has been done yet, or the repository is only intended to be a limited example, demo, or proof-of-concept.](https://www.repostatus.org/badges/latest/concept.svg)](https://www.repostatus.org/#concept)
-[![Community Support](https://badgen.net/badge/support/community/cyan?icon=awesome)](/SUPPORT.md) <!-- [![Commercial Support](https://badgen.net/badge/support/commercial/cyan?icon=awesome)](<Insert URL>) -->
-[![Community Forum](https://img.shields.io/badge/community-forum-009639?logo=discourse&link=https%3A%2F%2Fcommunity.nginx.org)](https://community.nginx.org)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/license/apache-2-0)
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](/CODE_OF_CONDUCT.md)
+# NGINX for Model Context Protocol
 
-# Agentic Observability with NGINX: Real-time MCP Traffic Monitoring
+Model Context Protocol (MCP) lets clients call tools provided by a server.
+Over HTTP, a tool call is a JSON-RPC request sent by POST to a single
+endpoint, such as `/mcp`. The RPC method `tools/call` selects the operation;
+`params.name` selects the tool.
 
-An [njs](https://nginx.org/en/docs/njs/) module for monitoring
-[Model Context Protocol](https://modelcontextprotocol.io/) (MCP) traffic
-through NGINX.  When combined with
-[nginx-otel](https://github.com/nginxinc/nginx-otel), it extracts MCP metadata
-from JSON-RPC/SSE responses in real time and exports it as OpenTelemetry span
-attributes -- giving you per-tool latency, throughput, and error-rate visibility
-without any changes to the MCP client or server.
+This repository provides NGINX routing recipes and runnable examples of
+HTTP metrics, backend operation metrics, and JSON response observation.
+The examples support direct calls to known tools using MCP 2026-07-28.
+Clients that require tool discovery need an additional discovery endpoint
+or adapter; these examples do not aggregate backend tool catalogs.
 
-## How it works
+## Native request processing
 
-```mermaid
-flowchart LR
-    Client[MCP Client] -->|MCP| NGINX
-    subgraph NGINX
-        direction TB
-        njs[mcp.js<br><i>extracts tool name,<br>error status, client<br>and server identity</i>]
-        otel[nginx-otel<br><i>exports span<br>attributes</i>]
-        njs --> otel
-    end
-    NGINX -->|MCP| Server[MCP Server]
-    otel -->|gRPC :4317| Collector[OTel Collector]
+The HTTP JSON module is available since NGINX 1.31.5 and requires
+`--with-http_json_module` when building from source. The demos use the
+official NGINX 1.31.6 `alpine-otel` image with the JSON module built in.
+
+MCP 2026-07-28 mirrors the RPC method and tool name into HTTP headers.
+NGINX can route using these headers. `client_body_early_read` and `json_set`
+also make body fields available before routing and access checks. Comparing
+headers with the body prevents a caller from routing to one tool while
+asking the backend to execute another.
+
+A request to the native example looks like this:
+
+```http
+POST /mcp HTTP/1.1
+Host: localhost:9000
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/call
+Mcp-Name: get_forecast
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_forecast",
+    "arguments": {},
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {}
+    }
+  }
+}
 ```
 
-NGINX sits as a reverse proxy between an MCP client and server.  The njs body
-filter (`mcp.js`) inspects the streamed
-[Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http)
-SSE response, parses the first JSON-RPC 2.0 message, and extracts:
-
-- **`mcp_tool_name`** -- the tool name from `tools/call` requests
-  (read from the request body)
-- **`mcp_tool_status`** -- `"ok"` or `"error"`, detected from both
-  protocol-level JSON-RPC `error` objects and tool-level `isError: true`
-  responses
-- **`mcp_client_name`** -- the MCP client identity (`clientInfo.name`)
-  captured from the `initialize` handshake and associated with the session
-  via
-  [`js_shared_dict_zone`](https://nginx.org/en/docs/http/ngx_http_js_module.html#js_shared_dict_zone)
-- **`mcp_server_name`** -- the MCP server identity (`serverInfo.name`)
-  extracted from the `initialize` response body and stored in a separate
-  shared dict zone
-
-These values are exposed as NGINX variables that the nginx-otel module can
-attach to each trace span as custom attributes.
-
-## Quick Start Demo
-
-A complete end-to-end demo is available in the [`demo/`](demo/) directory.
-It packages NGINX, njs, nginx-otel, an OTel Collector, Prometheus, Grafana,
-and a mock MCP client/server into a single Docker image with a pre-provisioned
-dashboard.  See [demo/README.md](demo/README.md) for instructions.
-
-## Setup
-
-### Prerequisites
-
-- NGINX JavaScript [njs](https://github.com/nginx/njs) module
-- The [nginx-otel](https://github.com/nginxinc/nginx-otel) module
-- An OpenTelemetry Collector (or compatible backend) to receive traces
-
-### Configuration
-
-Copy `mcp.js` to your NGINX configuration directory (e.g. `/etc/nginx/`) and
-add the following to your `nginx.conf`:
+This abbreviated configuration illustrates the key settings:
 
 ```nginx
-load_module modules/ngx_http_js_module.so;
-load_module modules/ngx_otel_module.so;
-
-events {}
-
 http {
-    js_import main from mcp.js;
-    js_shared_dict_zone zone=mcp_clients:1M timeout=365d evict;
-    js_shared_dict_zone zone=mcp_servers:1M timeout=365d evict;
+    json_set $mcp_body_method $request_body method;
+    json_set $mcp_body_tool $request_body params.name;
 
-    otel_exporter {
-        endpoint localhost:4317;
+    map "$mcp_body_method:$mcp_body_tool" $mcp_upstream {
+        default                   "";
+        "tools/call:get_forecast" forecast_backend;
+    }
+
+    upstream forecast_backend {
+        server 127.0.0.1:9001;
     }
 
     server {
         listen 9000;
 
-        otel_trace on;
+        client_body_early_read on;
+        client_max_body_size 64k;
+        client_body_buffer_size 64k;
 
-        # Extract MCP metadata from request/response
-        js_set $mcp_tool main.mcp_tool_name;
-        js_set $mcp_status main.mcp_tool_status;
-        js_set $mcp_client main.mcp_client_name;
-        js_set $mcp_server main.mcp_server_name;
+        location = /mcp {
+            if ($http_mcp_method != $mcp_body_method) {
+                return 400;
+            }
 
-        # Export as span attributes
-        otel_span_attr "mcp.tool.name" $mcp_tool;
-        otel_span_attr "mcp.tool.status" $mcp_status;
-        otel_span_attr "mcp.client.name" $mcp_client;
-        otel_span_attr "mcp.server.name" $mcp_server;
+            if ($http_mcp_name != $mcp_body_tool) {
+                return 400;
+            }
 
-        location /mcp {
-            # Parse SSE response, capture client and server identity
-            js_header_filter main.mcp_header_filter;
-            js_body_filter main.mcp_response_filter;
+            if ($mcp_upstream = "") {
+                return 403;
+            }
 
-            proxy_pass http://upstream_mcp_server;
+            proxy_pass http://$mcp_upstream;
         }
     }
 }
 ```
 
-The `otel_exporter` block points to your OpenTelemetry Collector's gRPC
-endpoint.  Each proxied request produces a trace span with the `mcp.tool.name`,
-`mcp.tool.status`, `mcp.client.name`, and `mcp.server.name` attributes, which downstream
-tools (Prometheus, Grafana, Jaeger, etc.) can use for filtering, grouping, and
-alerting.
+The [complete native example](demo/native-routing/nginx.conf) also checks HTTP
+method, media type and protocol version. Request buffers must hold the
+allowed body size so `$request_body` is available to `json_set`.
 
-Two `js_shared_dict_zone` directives create shared memory zones that store
-session-to-identity mappings.  During the `initialize` handshake the header
-filter captures `clientInfo.name` from the request body, and the body filter
-extracts `serverInfo.name` from the response.  Both are keyed by
-`Mcp-Session-Id` and looked up on subsequent `tools/call` requests.
+## What each observation layer provides
 
-### Exported variables
+HTTP 200 can carry a JSON-RPC error or a tool result with `isError: true`.
+HTTP status alone therefore does not tell you whether the tool succeeded.
+An `input_required` result asks for more client input; it is neither a
+completed success nor a tool failure.
 
-| Variable | Directive | Description |
-|----------|-----------|-------------|
-| `$mcp_tool` | `js_set` | Tool name from `tools/call` requests, empty for other methods |
-| `$mcp_status` | `js_set` | `"ok"` or `"error"` based on the JSON-RPC response |
-| `$mcp_client` | `js_set` | Client name from `initialize` handshake, looked up by session ID |
-| `$mcp_server` | `js_set` | Server name from `initialize` response, looked up by session ID |
+| Layer | Observes | Requires |
+| --- | --- | --- |
+| Native NGINX | Routing, header/body checks, HTTP status and request latency | JSON module; OTel module for telemetry export |
+| Server-side instrumentation | MCP operation outcomes and backend operation latency | Instrumented SDK/framework and exporter setup |
+| njs at NGINX | Tool/RPC errors and interim results in JSON responses seen by the proxy | njs; no backend instrumentation |
 
-### njs functions
+Instrumentation support varies by SDK and framework. The server-side
+example uses the official Python MCP SDK's built-in OpenTelemetry (OTel)
+instrumentation for the information backend: three of the eight tools.
+Go backends remain uninstrumented.
 
-| Function | Used as | Description |
-|----------|---------|-------------|
-| `mcp_tool_name` | `js_set` | Parses request body, returns tool name for `tools/call` |
-| `mcp_tool_status` | `js_set` | Returns `"error"` if response contains a JSON-RPC error or `isError: true` |
-| `mcp_client_name` | `js_set` | Looks up client name by `Mcp-Session-Id` from shared dict |
-| `mcp_server_name` | `js_set` | Looks up server name by `Mcp-Session-Id` from shared dict |
-| `mcp_response_filter` | `js_body_filter` | Buffers SSE response, extracts first JSON-RPC message and server identity |
-| `mcp_header_filter` | `js_header_filter` | Removes `Content-Length` header and captures client identity from `initialize` |
+Backend operation metrics and proxy request metrics have different
+boundaries and counters. They should be compared, not added together.
+SDK and njs observation can complement each other; the supplied demos
+select each source separately to make its contribution clear.
 
-## Contributing
+## Demo catalog
 
-Please see the [contributing guide](/CONTRIBUTING.md) for guidelines on how to
-best contribute to this project.
+| Example | Edition | Type | Adds | Run from demo/ |
+| --- | --- | --- | --- | --- |
+| [Native MCP routing and HTTP observability](demo/native-routing/README.md) | OSS | Observability | Body routing and HTTP telemetry, without njs | `./run.sh native-routing` |
+| [MCP server-side observability](demo/server-observability/README.md) | OSS | Observability | Python information backend operation outcomes | `./run.sh server-observability` |
+| [MCP response observability with njs](demo/njs-response-observability/README.md) | OSS | Observability | JSON response outcomes at NGINX | `./run.sh njs-response-observability` |
+| [MCP structured gateway audit](demo/structured-audit/README.md) | OSS | Audit logs | JSON events explaining tool calls and gateway rejections | `./run.sh structured-audit` |
+| [MCP searchable gateway audit](demo/searchable-audit/README.md) | OSS | Audit logs | Search tool calls and gateway decisions in Loki and Grafana | `./run.sh searchable-audit` |
+| [MCP audit and traces](demo/audit-traces/README.md) | OSS | Audit logs / Tracing | Follow an audit event through gateway and backend spans | `./run.sh audit-traces` |
+| [Per-tool rate limits](demo/tool-rate-limiting/README.md) | OSS | Protection | Independent tool limits with NGINX OSS | `./run.sh tool-rate-limiting` |
+| [Per-tool circuit breaker](demo/tool-circuit-breaking/README.md) | OSS | Protection | Blocks failing tools with OSS and njs | `./run.sh tool-circuit-breaking` |
+| [MCP OAuth resource protection](demo/oauth-resource-protection/README.md) | [Plus](https://www.f5.com/products/nginx) | Authorization | Token validation, tool permissions and verified identity; web UI and CLI | `./oauth-resource-protection/run.sh up` |
 
-## License
+Plus requires a commercial subscription.
 
-[Apache License, Version 2.0](/LICENSE)
+Each example starts its backends and monitoring stack, with a traffic
+generator or interactive scenarios.
+See [the demo guide](demo/README.md) for setup and verification.
 
-&copy; [F5, Inc.](https://www.f5.com/) 2025
+## Reusable artifacts
+
+| Directory | Contents |
+| --- | --- |
+| [nginx/](nginx/README.md) | Metadata, validation and OTel configuration snippets |
+| [njs/](njs/README.md) | Bounded JSON-RPC response observer |
+| [observability/](observability/README.md) | Collector pipelines and Grafana dashboards |
+| [demo/](demo/README.md) | Runnable deployments, backends and mixed traffic |
+| [t/](t/) | Tests using the same processing artifacts as demos |
+
+NGINX configuration snippets have explicit `http`, `server` or `location`
+contexts. Adapt upstreams, tool allowlists, limits and exporter endpoints
+to your deployment; Docker DNS and mock tools belong to the demos.
+
+## Protocol scope
+
+Discovery, catalog aggregation and legacy initialization/session support
+are outside the examples' direct-call scope.
+
+The supplied allowlists use header-safe ASCII names. Base64-sentinel
+`Mcp-Name` values are rejected, not decoded. Backends remain responsible for
+complete JSON-RPC and tool schema validation. Request metadata is not an
+authenticated identity.
+
+References: [JSON module](https://nginx.org/en/docs/http/ngx_http_json_module.html),
+[early body reading](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_body_early_read),
+[MCP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http).
