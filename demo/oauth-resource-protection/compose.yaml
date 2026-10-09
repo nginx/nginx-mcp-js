@@ -1,0 +1,90 @@
+services:
+  app:
+    user: "${OAUTH_UID}:${OAUTH_GID}"
+    build: ./oauth-resource-protection/app
+    image: mcp-oauth-app:2026-07-28
+    environment:
+      DEMO_PUBLIC_URL: ${DEMO_PUBLIC_URL}
+      DEMO_PORT: ${DEMO_PORT:-4096}
+      GRAFANA_PUBLIC_URL: ${GRAFANA_PUBLIC_URL}
+      OAUTH_HOST_EXAMPLE: ${OAUTH_HOST_EXAMPLE}
+      OAUTH_STATE_DIR: ${OAUTH_STATE_DIR}
+      OAUTH_UID: ${OAUTH_UID}
+      OAUTH_GID: ${OAUTH_GID}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ${OAUTH_STATE_DIR}:/state
+      - ./oauth-resource-protection:/example:ro
+    ports:
+      - "127.0.0.1:${OAUTH_APP_PORT:-14096}:8080"
+    command: [gunicorn, --bind, "0.0.0.0:8080", --workers, "1",
+              --threads, "4", --timeout, "60", "app:app"]
+  idp:
+    image: quay.io/keycloak/keycloak:26.8.0@sha256:b0f60d489d51c5d113390bdf5461d4c06e6051be026c05549f2e1e10ec352bcc
+    command: [start-dev, --import-realm, --http-relative-path=/idp]
+    environment:
+      KC_HOSTNAME: ${DEMO_PUBLIC_URL}/idp
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - ${OAUTH_STATE_DIR}/realm.json:/opt/keycloak/data/import/realm.json:ro
+    ports:
+      - "127.0.0.1:${OAUTH_IDP_PORT:-14097}:8080"
+    mem_limit: 768m
+  mcp-information:
+    image: mcp-demo:2026-07-28
+    build:
+      context: ./shared/backends/go
+      args:
+        BUILDER_IMAGE: ${MCP_BUILDER_IMAGE:-golang:1.25.9-alpine3.23@sha256:5caaf1cca9dc351e13deafbc3879fd4754801acba8653fa9540cea125d01a71f}
+    command: [/mcp_server, --name, mcp-information, --backend, information,
+              --port, "9001", --allow-simulation, --tracing]
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: mcp-information
+    ports:
+      - "127.0.0.1:${OAUTH_BACKEND_PORT:-14098}:9001"
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.146.1
+    user: "0:0"
+    command:
+      - --config=/etc/otelcol/config.yaml
+      - --config=/pipelines/audit.yaml
+      - --config=/pipelines/traces.yaml
+    volumes:
+      - ./oauth-resource-protection/otel.yaml:/etc/otelcol/config.yaml:ro
+      - ../observability/otel:/pipelines:ro
+      - ${OAUTH_STATE_DIR}/logs:/var/log/nginx/audit:ro
+      - checkpoints:/var/lib/otelcol
+    ports:
+      - "127.0.0.1:${OAUTH_OTEL_PORT:-14317}:4317"
+  audit-loki:
+    image: grafana/loki:3.7.4@sha256:87f0a067673756a3cede1bcbf0c74875f7df9b09fddb53e399d0c576f756cfcc
+    command: [-config.file=/etc/loki/config.yaml]
+    volumes:
+      - ../observability/loki/audit.yaml:/etc/loki/config.yaml:ro
+      - logs:/loki
+  audit-tempo:
+    image: grafana/tempo:2.10.7@sha256:032b3acb51ed02c4b801473d54bb63e9e9f13738d215126d9843c30283794f4b
+    user: "0:0"
+    command: [-config.file=/etc/tempo/config.yaml]
+    volumes:
+      - ../observability/tempo/audit.yaml:/etc/tempo/config.yaml:ro
+      - traces:/var/tempo
+  grafana:
+    image: grafana/grafana-oss:12.3.3
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    ports:
+      - "${GRAFANA_PORT:-8001}:3000"
+    volumes:
+      - ./audit-traces/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./searchable-audit/providers.yaml:/etc/grafana/provisioning/dashboards/providers.yaml:ro
+      - ../observability/grafana/audit:/var/lib/grafana/audit:ro
+
+volumes:
+  checkpoints:
+  logs:
+  traces:

@@ -125,6 +125,18 @@ func run() error {
 		},
 	)
 
+	var httpHandler http.Handler = handler
+	if *allowSimulation {
+		httpHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Demo-Received-User", r.Header.Get("X-User"))
+			w.Header().Set("X-Demo-Received-Tenant", r.Header.Get("X-Tenant"))
+			if r.Header.Get("Authorization") != "" {
+				w.Header().Set("X-Demo-Received-Authorization", "present")
+			}
+			handler.ServeHTTP(w, r)
+		})
+	}
+
 	addr := fmt.Sprintf(":%d", *port)
 	log.Printf(
 		"starting %s on %s, backend=%s, tools=%v",
@@ -134,9 +146,8 @@ func run() error {
 		toolNames,
 	)
 
-	var httpHandler http.Handler = handler
 	if *tracing {
-		httpHandler = telemetry.HTTPHandler(handler)
+		httpHandler = telemetry.HTTPHandler(httpHandler)
 	}
 	httpServer := &http.Server{Addr: addr, Handler: httpHandler}
 	serverErr := make(chan error, 1)
